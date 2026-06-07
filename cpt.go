@@ -45,7 +45,7 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: cpt <command> [args]")
 	fmt.Fprintln(os.Stderr, "  new [filename]                   create a new .cpp from template (default: main.cpp)")
-	fmt.Fprintln(os.Stderr, "  run [-i file] <filename>         compile and run without leaving a binary")
+	fmt.Fprintln(os.Stderr, "  run [-i file] [-a arg]... <filename>  compile and run without leaving a binary")
 	fmt.Fprintln(os.Stderr, "  ac test                          compile and run tests with oj")
 	fmt.Fprintln(os.Stderr, "  snippet list                     list snippets")
 	fmt.Fprintln(os.Stderr, "  snippet add [-scope] <name>      create a new snippet")
@@ -82,13 +82,20 @@ func cmdNew(args []string) {
 	fmt.Printf("created %s\n", filename)
 }
 
+type arrayFlag []string
+
+func (f *arrayFlag) String() string { return strings.Join(*f, " ") }
+func (f *arrayFlag) Set(v string) error { *f = append(*f, v); return nil }
+
 func cmdRun(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	input := fs.String("i", "", "input file")
+	var progArgs arrayFlag
+	fs.Var(&progArgs, "a", "program argument (repeatable)")
 	fs.Parse(args)
 
 	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "usage: cpt run [-i file] <filename>")
+		fmt.Fprintln(os.Stderr, "usage: cpt run [-i file] [-a arg]... <filename>")
 		os.Exit(1)
 	}
 
@@ -111,7 +118,7 @@ func cmdRun(args []string) {
 		stdin = f
 	}
 
-	run := exec.Command(binPath)
+	run := exec.Command(binPath, progArgs...)
 	run.Stdin = stdin
 	run.Stdout = os.Stdout
 	run.Stderr = os.Stderr
