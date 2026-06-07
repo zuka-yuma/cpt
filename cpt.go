@@ -131,7 +131,7 @@ func runTests(src, testDir string) error {
 func acTest(args []string) {
 	fs := flag.NewFlagSet("ac test", flag.ExitOnError)
 	src := fs.String("src", "main.cpp", "source file")
-	dir := fs.String("d", "test", "testcase dir")
+	dir := fs.String("d", "tests", "testcase dir")
 	fs.Parse(args)
 	if err := runTests(*src, *dir); err != nil {
 		os.Exit(1)
@@ -141,7 +141,7 @@ func acTest(args []string) {
 func acSubmit(args []string) {
 	fs := flag.NewFlagSet("ac submit", flag.ExitOnError)
 	src := fs.String("src", "main.cpp", "source file")
-	dir := fs.String("d", "test", "testcase dir")
+	dir := fs.String("d", "tests", "testcase dir")
 	yes := fs.Bool("y", false, "skip confirmation")
 	fs.Parse(args)
 
