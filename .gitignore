@@ -1,0 +1,5 @@
+# editor backups
+*.go~
+
+# built binary
+cpt
