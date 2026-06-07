@@ -5,10 +5,22 @@ AtCoder 向け C++ CLI ツール。テンプレート展開・コンパイル実
 ## インストール
 
 ```bash
+go install github.com/zuka-yuma/cpt@latest
+```
+
+`$HOME/go/bin` に `cpt` が入ります。PATH が通っていない場合は `~/.zprofile` に追加してください。
+
+```bash
+export PATH="$PATH:$HOME/go/bin"
+```
+
+### ソースからビルド
+
+```bash
 git clone https://github.com/zuka-yuma/cpt.git
 cd cpt
 go build -o cpt .
-mv cpt /usr/local/bin/   # PATH の通った場所に置く
+mv cpt /usr/local/bin/
 ```
 
 ## コマンド
