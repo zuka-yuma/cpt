@@ -52,6 +52,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  snippet show <name>              show snippet")
 	fmt.Fprintln(os.Stderr, "  snippet edit <name>              edit snippet")
 	fmt.Fprintln(os.Stderr, "  snippet insert <name> [file]     insert snippet into file")
+	fmt.Fprintln(os.Stderr, "  snippet delete [-y] <name>       delete snippet")
 }
 
 func cmdNew(args []string) {
