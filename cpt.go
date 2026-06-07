@@ -1,16 +1,21 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const template = `#include <iostream>
 using namespace std;
 
+// @snippet:global
+
 int main() {
+	// @snippet:local
 	return 0;
 }
 `
@@ -26,6 +31,10 @@ func main() {
 		cmdNew(os.Args[2:])
 	case "run":
 		cmdRun(os.Args[2:])
+	case "ac", "atcoder":
+		cmdAC(os.Args[2:])
+	case "snippet", "sn":
+		cmdSnippet(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n", os.Args[1])
 		usage()
@@ -35,8 +44,14 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: cpt <command> [args]")
-	fmt.Fprintln(os.Stderr, "  new <filename>         create a new .cpp from template")
-	fmt.Fprintln(os.Stderr, "  run <filename> [args]  compile and run without leaving a binary")
+	fmt.Fprintln(os.Stderr, "  new <filename>                   create a new .cpp from template")
+	fmt.Fprintln(os.Stderr, "  run <filename> [args]            compile and run without leaving a binary")
+	fmt.Fprintln(os.Stderr, "  ac test                          compile and run tests with oj")
+	fmt.Fprintln(os.Stderr, "  snippet list                     list snippets")
+	fmt.Fprintln(os.Stderr, "  snippet add [-scope] <name>      create a new snippet")
+	fmt.Fprintln(os.Stderr, "  snippet show <name>              show snippet")
+	fmt.Fprintln(os.Stderr, "  snippet edit <name>              edit snippet")
+	fmt.Fprintln(os.Stderr, "  snippet insert <name> [file]     insert snippet into file")
 }
 
 func cmdNew(args []string) {
@@ -48,7 +63,6 @@ func cmdNew(args []string) {
 	filename := args[0]
 	if filepath.Ext(filename) != ".cpp" {
 		filename += ".cpp"
-		
 	}
 
 	if _, err := os.Stat(filename); err == nil {
@@ -57,7 +71,7 @@ func cmdNew(args []string) {
 	}
 
 	if err := os.WriteFile(filename, []byte(template), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "error: f\ni, errled to write file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error: failed to write file: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -69,26 +83,15 @@ func cmdRun(args []string) {
 		fmt.Fprintln(os.Stderr, "usage: cpt run <filename> [args]")
 		os.Exit(1)
 	}
-	
+
 	srcFile := args[0]
 	progArgs := args[1:]
-	
-	tmpDir, err := os.MkdirTemp("", "cpt-")
+
+	binPath, cleanup, err := compile(srcFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: failed to create temp dir: %v\n", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tmpDir)
-	
-	binPath := filepath.Join(tmpDir, "a.out")
-	
-	compile := exec.Command("g++", "-std=c++17", "-O2", "-o", binPath, srcFile)
-	compile.Stdout = os.Stdout
-	compile.Stderr = os.Stderr
-	if err := compile.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "compile failed: %v\n", err)
-		os.Exit(1)
-	}
+	defer cleanup()
 
 	run := exec.Command(binPath, progArgs...)
 	run.Stdin = os.Stdin
@@ -101,4 +104,267 @@ func cmdRun(args []string) {
 		fmt.Fprintf(os.Stderr, "run failed: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func cmdAC(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt ac test")
+		os.Exit(1)
+	}
+	switch args[0] {
+	case "test":
+		acTest(args[1:])
+	default:
+		fmt.Fprintln(os.Stderr, "unknown: ac "+args[0])
+		os.Exit(1)
+	}
+}
+
+func runTests(src, testDir string) error {
+	bin, cleanup, err := compile(src)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	cmd := exec.Command("oj", "test", "-c", bin, "-d", testDir)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+func acTest(args []string) {
+	fs := flag.NewFlagSet("ac test", flag.ExitOnError)
+	src := fs.String("src", "main.cpp", "source file")
+	dir := fs.String("d", "tests", "testcase dir")
+	fs.Parse(args)
+	if err := runTests(*src, *dir); err != nil {
+		os.Exit(1)
+	}
+}
+
+func compile(src string) (bin string, cleanup func(), err error) {
+	tmp, err := os.MkdirTemp("", "cpt-")
+	if err != nil {
+		return "", func() {}, err
+	}
+	cleanup = func() { os.RemoveAll(tmp) }
+	bin = filepath.Join(tmp, "a.out")
+
+	cxx := getenvOr("CPT_CXX", "g++-15")
+	flags := strings.Fields(getenvOr("CPT_CXXFLAGS", "-std=gnu++23 -O2 -Wall"))
+	args := append(flags, "-o", bin, src)
+
+	cmd := exec.Command(cxx, args...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		cleanup()
+		return "", func() {}, fmt.Errorf("compile failed: %w", err)
+	}
+	return bin, cleanup, nil
+}
+
+func getenvOr(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
+}
+
+func cmdSnippet(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet {list|add|show|edit|insert}")
+		os.Exit(1)
+	}
+	switch args[0] {
+	case "list", "ls":
+		snList()
+	case "add":
+		snAddCmd(args[1:])
+	case "show", "cat":
+		snShowCmd(args[1:])
+	case "edit":
+		snEditCmd(args[1:])
+	case "insert", "i":
+		snInsertCmd(args[1:])
+	default:
+		fmt.Fprintln(os.Stderr, "unknown: snippet "+args[0])
+		os.Exit(1)
+	}
+}
+
+func snList() {
+	entries, err := os.ReadDir(snippetDir())
+	if err != nil {
+		fmt.Println("(no snippets)")
+		return
+	}
+	for _, e := range entries {
+		if filepath.Ext(e.Name()) != ".cpp" {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".cpp")
+		if s, err := loadSnippet(name); err == nil {
+			fmt.Printf("%-18s [%-6s] %s\n", s.Name, s.Scope, s.Desc)
+		}
+	}
+}
+
+type snippet struct{ Name, Scope, Desc, Body string }
+
+func loadSnippet(name string) (*snippet, error) {
+	data, err := os.ReadFile(filepath.Join(snippetDir(), name+".cpp"))
+	if err != nil {
+		return nil, err
+	}
+	s := &snippet{Name: name, Scope: "global"}
+	var body []string
+	inHeader := true
+	for _, line := range strings.Split(string(data), "\n") {
+		t := strings.TrimSpace(line)
+		if inHeader && strings.HasPrefix(t, "//") {
+			meta := strings.TrimSpace(strings.TrimPrefix(t, "//"))
+			if k, v, ok := strings.Cut(meta, ":"); ok {
+				switch strings.TrimSpace(k) {
+				case "scope":
+					s.Scope = strings.TrimSpace(v)
+					continue
+				case "desc":
+					s.Desc = strings.TrimSpace(v)
+					continue
+				}
+			}
+		}
+		inHeader = false
+		body = append(body, line)
+	}
+	s.Body = strings.TrimRight(strings.Join(body, "\n"), "\n")
+	return s, nil
+}
+
+func configHome() string {
+	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
+		return x
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config")
+}
+func snippetDir() string { return filepath.Join(configHome(), "cpt", "snippets") }
+
+func snAdd(name, scope string) {
+	os.MkdirAll(snippetDir(), 0o755)
+	path := filepath.Join(snippetDir(), name+".cpp")
+	if _, err := os.Stat(path); err == nil {
+		fmt.Fprintln(os.Stderr, "already exists: "+name)
+		os.Exit(1)
+	}
+	skeleton := fmt.Sprintf("// scope: %s\n// desc: \n\n", scope)
+	os.WriteFile(path, []byte(skeleton), 0o644)
+	openEditor(path)
+}
+
+func openEditor(path string) error {
+	ed := getenvOr("EDITOR", "vi")
+	cmd := exec.Command("sh", "-c", ed+" "+path)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+func snInsert(name, target string, scopeOverride string) {
+	s, err := loadSnippet(name)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if scopeOverride != "" {
+		s.Scope = scopeOverride
+	}
+
+	data, err := os.ReadFile(target)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	content := string(data)
+
+	guardOpen := "// >>> snippet:" + name
+	if strings.Contains(content, guardOpen) {
+		fmt.Printf("skip: %q is already inserted\n", name)
+		return
+	}
+
+	marker := "// @snippet:" + s.Scope
+	lines := strings.Split(content, "\n")
+	idx := -1
+	for i, l := range lines {
+		if strings.Contains(l, marker) {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		fmt.Fprintf(os.Stderr, "marker %q not found in %s\n", marker, target)
+		os.Exit(1)
+	}
+
+	block := []string{guardOpen, s.Body, "// <<< snippet:" + name}
+	out := append([]string{}, lines[:idx+1]...)
+	out = append(out, block...)
+	out = append(out, lines[idx+1:]...)
+
+	os.WriteFile(target, []byte(strings.Join(out, "\n")), 0o644)
+	fmt.Printf("inserted %q at %s\n", name, marker)
+}
+
+func snAddCmd(args []string) {
+	fs := flag.NewFlagSet("snippet add", flag.ExitOnError)
+	scope := fs.String("scope", "global", "global|local")
+	fs.Parse(args)
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet add [-scope global|local] <name>")
+		os.Exit(1)
+	}
+	snAdd(fs.Arg(0), *scope)
+}
+
+func snShowCmd(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet show <name>")
+		os.Exit(1)
+	}
+	s, err := loadSnippet(args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("// name : %s\n// scope: %s\n// desc : %s\n\n%s\n",
+		s.Name, s.Scope, s.Desc, s.Body)
+}
+
+func snEditCmd(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet edit <name>")
+		os.Exit(1)
+	}
+	path := filepath.Join(snippetDir(), args[0]+".cpp")
+	if _, err := os.Stat(path); err != nil {
+		fmt.Fprintln(os.Stderr, "no such snippet: "+args[0])
+		os.Exit(1)
+	}
+	openEditor(path)
+}
+
+func snInsertCmd(args []string) {
+	fs := flag.NewFlagSet("snippet insert", flag.ExitOnError)
+	scope := fs.String("scope", "", "override snippet scope (global|local)")
+	fs.Parse(args)
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet insert [-scope ...] <name> [target.cpp]")
+		os.Exit(1)
+	}
+	name := fs.Arg(0)
+	target := "main.cpp"
+	if fs.NArg() >= 2 {
+		target = fs.Arg(1)
+	}
+	snInsert(name, target, *scope)
 }
