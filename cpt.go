@@ -11,7 +11,10 @@ import (
 const template = `#include <iostream>
 using namespace std;
 
+// @snippet:global
+
 int main() {
+	// @snippet:local
 	return 0;
 }
 `
