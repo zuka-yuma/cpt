@@ -2,6 +2,13 @@
 
 AtCoder 向け C++ CLI ツール。テンプレート展開・コンパイル実行・テスト・スニペット管理をまとめて行います。
 
+## 前提条件
+
+以下のツールがインストール済みであることを前提とします。
+
+- [oj](https://github.com/online-judge-tools/oj) — テストケースのダウンロード・実行
+- [acc](https://github.com/Tatamo/atcoder-cli) — AtCoder コンテストの管理
+
 ## インストール
 
 ```bash
