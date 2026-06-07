@@ -45,7 +45,7 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: cpt <command> [args]")
 	fmt.Fprintln(os.Stderr, "  new [filename]                   create a new .cpp from template (default: main.cpp)")
-	fmt.Fprintln(os.Stderr, "  run <filename> [args]            compile and run without leaving a binary")
+	fmt.Fprintln(os.Stderr, "  run [-i file] <filename>         compile and run without leaving a binary")
 	fmt.Fprintln(os.Stderr, "  ac test                          compile and run tests with oj")
 	fmt.Fprintln(os.Stderr, "  snippet list                     list snippets")
 	fmt.Fprintln(os.Stderr, "  snippet add [-scope] <name>      create a new snippet")
@@ -83,13 +83,16 @@ func cmdNew(args []string) {
 }
 
 func cmdRun(args []string) {
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: cpt run <filename> [args]")
+	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	input := fs.String("i", "", "input file")
+	fs.Parse(args)
+
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt run [-i file] <filename>")
 		os.Exit(1)
 	}
 
-	srcFile := args[0]
-	progArgs := args[1:]
+	srcFile := fs.Arg(0)
 
 	binPath, cleanup, err := compile(srcFile)
 	if err != nil {
@@ -97,8 +100,19 @@ func cmdRun(args []string) {
 	}
 	defer cleanup()
 
-	run := exec.Command(binPath, progArgs...)
-	run.Stdin = os.Stdin
+	stdin := os.Stdin
+	if *input != "" {
+		f, err := os.Open(*input)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		stdin = f
+	}
+
+	run := exec.Command(binPath)
+	run.Stdin = stdin
 	run.Stdout = os.Stdout
 	run.Stderr = os.Stderr
 	if err := run.Run(); err != nil {
