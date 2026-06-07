@@ -44,8 +44,14 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: cpt <command> [args]")
-	fmt.Fprintln(os.Stderr, "  new <filename>         create a new .cpp from template")
-	fmt.Fprintln(os.Stderr, "  run <filename> [args]  compile and run without leaving a binary")
+	fmt.Fprintln(os.Stderr, "  new <filename>                   create a new .cpp from template")
+	fmt.Fprintln(os.Stderr, "  run <filename> [args]            compile and run without leaving a binary")
+	fmt.Fprintln(os.Stderr, "  ac test                          compile and run tests with oj")
+	fmt.Fprintln(os.Stderr, "  snippet list                     list snippets")
+	fmt.Fprintln(os.Stderr, "  snippet add [-scope] <name>      create a new snippet")
+	fmt.Fprintln(os.Stderr, "  snippet show <name>              show snippet")
+	fmt.Fprintln(os.Stderr, "  snippet edit <name>              edit snippet")
+	fmt.Fprintln(os.Stderr, "  snippet insert <name> [file]     insert snippet into file")
 }
 
 func cmdNew(args []string) {
