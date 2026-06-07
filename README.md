@@ -30,6 +30,12 @@ go build -o cpt .
 mv cpt /usr/local/bin/
 ```
 
+バージョンを埋め込む場合:
+
+```bash
+go build -ldflags "-X main.version=v0.x.x" -o cpt .
+```
+
 ## コマンド
 
 ### `cpt new <filename>`
