@@ -63,6 +63,8 @@ cpt snippet show <name>               # 内容確認
 cpt snippet edit <name>               # 編集
 cpt snippet insert <name>             # main.cpp に挿入
 cpt snippet insert <name> <file>      # 対象ファイルを指定して挿入
+cpt snippet delete <name>             # 削除（確認プロンプトあり）
+cpt snippet delete -y <name>          # 確認なしで削除
 ```
 
 **スニペットのスコープ:**

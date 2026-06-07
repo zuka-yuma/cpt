@@ -52,6 +52,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  snippet show <name>              show snippet")
 	fmt.Fprintln(os.Stderr, "  snippet edit <name>              edit snippet")
 	fmt.Fprintln(os.Stderr, "  snippet insert <name> [file]     insert snippet into file")
+	fmt.Fprintln(os.Stderr, "  snippet delete [-y] <name>       delete snippet")
 }
 
 func cmdNew(args []string) {
@@ -172,7 +173,7 @@ func getenvOr(k, def string) string {
 
 func cmdSnippet(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: cpt snippet {list|add|show|edit|insert}")
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet {list|add|show|edit|insert|delete}")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -186,6 +187,8 @@ func cmdSnippet(args []string) {
 		snEditCmd(args[1:])
 	case "insert", "i":
 		snInsertCmd(args[1:])
+	case "remove", "rm", "delete", "d":
+		snDeleteCmd(args[1:])
 	default:
 		fmt.Fprintln(os.Stderr, "unknown: snippet "+args[0])
 		os.Exit(1)
@@ -351,6 +354,36 @@ func snEditCmd(args []string) {
 		os.Exit(1)
 	}
 	openEditor(path)
+}
+
+func snDeleteCmd(args []string) {
+	fs := flag.NewFlagSet("snippet delete", flag.ExitOnError)
+	yes := fs.Bool("y", false, "skip confirmation")
+	fs.Parse(args)
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet delete [-y] <name>")
+		os.Exit(1)
+	}
+	name := fs.Arg(0)
+	path := filepath.Join(snippetDir(), name+".cpp")
+	if _, err := os.Stat(path); err != nil {
+		fmt.Fprintln(os.Stderr, "no such snippet: "+name)
+		os.Exit(1)
+	}
+	if !*yes {
+		fmt.Printf("delete %q? [y/N]: ", name)
+		var ans string
+		fmt.Scanln(&ans)
+		if ans != "y" && ans != "Y" {
+			fmt.Println("cancelled")
+			return
+		}
+	}
+	if err := os.Remove(path); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("deleted %q\n", name)
 }
 
 func snInsertCmd(args []string) {
