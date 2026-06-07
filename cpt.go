@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,6 +31,8 @@ func main() {
 		cmdNew(os.Args[2:])
 	case "run":
 		cmdRun(os.Args[2:])
+	case "ac", "atcoder":
+		cmdAC(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n", os.Args[1])
 		usage()
@@ -91,6 +94,68 @@ func cmdRun(args []string) {
 			os.Exit(exitErr.ExitCode())
 		}
 		fmt.Fprintf(os.Stderr, "run failed: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func cmdAC(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt ac {test|submit}")
+		os.Exit(1)
+	}
+	switch args[0] {
+	case "test":
+		acTest(args[1:])
+	case "submit":
+		acSubmit(args[1:])
+	default:
+		fmt.Fprintln(os.Stderr, "unknown: ac "+args[0])
+		os.Exit(1)
+	}
+}
+
+func runTests(src, testDir string) error {
+	bin, cleanup, err := compile(src)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	cmd := exec.Command("oj", "test", "-c", bin, "-d", testDir)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+func acTest(args []string) {
+	fs := flag.NewFlagSet("ac test", flag.ExitOnError)
+	src := fs.String("src", "main.cpp", "source file")
+	dir := fs.String("d", "test", "testcase dir")
+	fs.Parse(args)
+	if err := runTests(*src, *dir); err != nil {
+		os.Exit(1)
+	}
+}
+
+func acSubmit(args []string) {
+	fs := flag.NewFlagSet("ac submit", flag.ExitOnError)
+	src := fs.String("src", "main.cpp", "source file")
+	dir := fs.String("d", "test", "testcase dir")
+	yes := fs.Bool("y", false, "skip confirmation")
+	fs.Parse(args)
+
+	if err := runTests(*src, *dir); err != nil {
+		fmt.Fprintln(os.Stderr, "❌ test failed - submit aborted")
+		os.Exit(1)
+	}
+	fmt.Println("✅ all tests passed - submitting")
+
+	accArgs := []string{"submit"}
+	if *yes {
+		accArgs = append(accArgs, "--", "-y")
+	}
+	cmd := exec.Command("acc", accArgs...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
 		os.Exit(1)
 	}
 }
