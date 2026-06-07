@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const template = `#include <iostream>
@@ -48,7 +49,6 @@ func cmdNew(args []string) {
 	filename := args[0]
 	if filepath.Ext(filename) != ".cpp" {
 		filename += ".cpp"
-		
 	}
 
 	if _, err := os.Stat(filename); err == nil {
@@ -57,7 +57,7 @@ func cmdNew(args []string) {
 	}
 
 	if err := os.WriteFile(filename, []byte(template), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "error: f\ni, errled to write file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error: failed to write file: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -69,26 +69,15 @@ func cmdRun(args []string) {
 		fmt.Fprintln(os.Stderr, "usage: cpt run <filename> [args]")
 		os.Exit(1)
 	}
-	
+
 	srcFile := args[0]
 	progArgs := args[1:]
-	
-	tmpDir, err := os.MkdirTemp("", "cpt-")
+
+	binPath, cleanup, err := compile(srcFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: failed to create temp dir: %v\n", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tmpDir)
-	
-	binPath := filepath.Join(tmpDir, "a.out")
-	
-	compile := exec.Command("g++", "-std=c++17", "-O2", "-o", binPath, srcFile)
-	compile.Stdout = os.Stdout
-	compile.Stderr = os.Stderr
-	if err := compile.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "compile failed: %v\n", err)
-		os.Exit(1)
-	}
+	defer cleanup()
 
 	run := exec.Command(binPath, progArgs...)
 	run.Stdin = os.Stdin
@@ -101,4 +90,32 @@ func cmdRun(args []string) {
 		fmt.Fprintf(os.Stderr, "run failed: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func compile(src string) (bin string, cleanup func(), err error) {
+	tmp, err := os.MkdirTemp("", "cpt-")
+	if err != nil {
+		return "", func() {}, err
+	}
+	cleanup = func() { os.RemoveAll(tmp) }
+	bin = filepath.Join(tmp, "a.out")
+
+	cxx := getenvOr("CPT_CXX", "g++-15")
+	flags := strings.Fields(getenvOr("CPT_CXXFLAGS", "-std=gnu++23 -O2 -Wall"))
+	args := append(flags, "-o", bin, src)
+
+	cmd := exec.Command(cxx, args...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		cleanup()
+		return "", func() {}, fmt.Errorf("compile failed: %w", err)
+	}
+	return bin, cleanup, nil
+}
+
+func getenvOr(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
 }
