@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+var version = "dev"
+
 const template = `#include <iostream>
 using namespace std;
 
@@ -27,6 +29,12 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "-h", "--help":
+		usage()
+		os.Exit(0)
+	case "-v", "--version":
+		fmt.Println("cpt", version)
+		os.Exit(0)
 	case "new":
 		cmdNew(os.Args[2:])
 	case "run":
@@ -56,6 +64,10 @@ func usage() {
 }
 
 func cmdNew(args []string) {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		fmt.Fprintln(os.Stderr, "usage: cpt new [filename]")
+		os.Exit(0)
+	}
 	if len(args) > 1 {
 		fmt.Fprintln(os.Stderr, "usage: cpt new [filename]")
 		os.Exit(1)
@@ -89,6 +101,7 @@ func (f *arrayFlag) Set(v string) error { *f = append(*f, v); return nil }
 
 func cmdRun(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	fs.Usage = func() { fmt.Fprintln(os.Stderr, "usage: cpt run [-i file] [-a arg]... <filename>") }
 	input := fs.String("i", "", "input file")
 	var progArgs arrayFlag
 	fs.Var(&progArgs, "a", "program argument (repeatable)")
@@ -132,8 +145,11 @@ func cmdRun(args []string) {
 }
 
 func cmdAC(args []string) {
-	if len(args) < 1 {
+	if len(args) < 1 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprintln(os.Stderr, "usage: cpt ac test")
+		if len(args) >= 1 {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -159,6 +175,7 @@ func runTests(src, testDir string) error {
 
 func acTest(args []string) {
 	fs := flag.NewFlagSet("ac test", flag.ExitOnError)
+	fs.Usage = func() { fmt.Fprintln(os.Stderr, "usage: cpt ac test [-src file] [-d dir]") }
 	src := fs.String("src", "main.cpp", "source file")
 	dir := fs.String("d", "tests", "testcase dir")
 	fs.Parse(args)
@@ -196,8 +213,11 @@ func getenvOr(k, def string) string {
 }
 
 func cmdSnippet(args []string) {
-	if len(args) < 1 {
+	if len(args) < 1 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprintln(os.Stderr, "usage: cpt snippet {list|add|show|edit|insert|delete}")
+		if len(args) >= 1 {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -344,6 +364,7 @@ func snInsert(name, target string, scopeOverride string) {
 
 func snAddCmd(args []string) {
 	fs := flag.NewFlagSet("snippet add", flag.ExitOnError)
+	fs.Usage = func() { fmt.Fprintln(os.Stderr, "usage: cpt snippet add [-scope global|local] <name>") }
 	scope := fs.String("scope", "global", "global|local")
 	fs.Parse(args)
 	if fs.NArg() < 1 {
@@ -354,8 +375,11 @@ func snAddCmd(args []string) {
 }
 
 func snShowCmd(args []string) {
-	if len(args) < 1 {
+	if len(args) < 1 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprintln(os.Stderr, "usage: cpt snippet show <name>")
+		if len(args) >= 1 {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
 	s, err := loadSnippet(args[0])
@@ -368,8 +392,11 @@ func snShowCmd(args []string) {
 }
 
 func snEditCmd(args []string) {
-	if len(args) < 1 {
+	if len(args) < 1 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Fprintln(os.Stderr, "usage: cpt snippet edit <name>")
+		if len(args) >= 1 {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
 	path := filepath.Join(snippetDir(), args[0]+".cpp")
@@ -382,6 +409,7 @@ func snEditCmd(args []string) {
 
 func snDeleteCmd(args []string) {
 	fs := flag.NewFlagSet("snippet delete", flag.ExitOnError)
+	fs.Usage = func() { fmt.Fprintln(os.Stderr, "usage: cpt snippet delete [-y] <name>") }
 	yes := fs.Bool("y", false, "skip confirmation")
 	fs.Parse(args)
 	if fs.NArg() < 1 {
@@ -412,6 +440,9 @@ func snDeleteCmd(args []string) {
 
 func snInsertCmd(args []string) {
 	fs := flag.NewFlagSet("snippet insert", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: cpt snippet insert [-scope global|local] <name> [target.cpp]")
+	}
 	scope := fs.String("scope", "", "override snippet scope (global|local)")
 	fs.Parse(args)
 	if fs.NArg() < 1 {
