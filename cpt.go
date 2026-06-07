@@ -44,7 +44,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: cpt <command> [args]")
-	fmt.Fprintln(os.Stderr, "  new <filename>                   create a new .cpp from template")
+	fmt.Fprintln(os.Stderr, "  new [filename]                   create a new .cpp from template (default: main.cpp)")
 	fmt.Fprintln(os.Stderr, "  run <filename> [args]            compile and run without leaving a binary")
 	fmt.Fprintln(os.Stderr, "  ac test                          compile and run tests with oj")
 	fmt.Fprintln(os.Stderr, "  snippet list                     list snippets")
@@ -56,12 +56,15 @@ func usage() {
 }
 
 func cmdNew(args []string) {
-	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: cpt new <filename>")
+	if len(args) > 1 {
+		fmt.Fprintln(os.Stderr, "usage: cpt new [filename]")
 		os.Exit(1)
 	}
 
-	filename := args[0]
+	filename := "main"
+	if len(args) == 1 {
+		filename = args[0]
+	}
 	if filepath.Ext(filename) != ".cpp" {
 		filename += ".cpp"
 	}
